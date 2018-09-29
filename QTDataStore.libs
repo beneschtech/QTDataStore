@@ -1,0 +1,20 @@
+### Datastore definitions of libs and header locations
+#
+# You should modify this for your system as needed
+#
+# XXX_INCLUDEPATH is the header directory where the header can be found.  If it is in a
+# standard search directory it can be left blank
+#
+# XXX_LIBS is the options you pass to the linker to include the library
+
+## LMDB
+LMDB_INCLUDEPATH=""
+LMDB_LIBS="-llmdb"
+
+## OpenSSL
+OPENSSL_INCLUDEPATH=""
+# Use crypto, we are using sha hash functions, not SSL
+OPENSSL_LIBS="-lcrypto"
+
+INCLUDEPATH += $${LMDB_INCLUDEPATH} $${OPENSSL_INCLUDEPATH}
+LIBS += $${LMDB_LIBS} $${OPENSSL_LIBS}
