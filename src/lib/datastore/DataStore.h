@@ -17,9 +17,14 @@ public:
     static void init(QString path,QStringList subDbs = QStringList());
     virtual QString filePath(void *metaData,size_t metaDataSize);
 
+// Getter/Setters
+    void setDataDir(QString s) { myDataDir = s; }
+    QString &dataDir() { return myDataDir; }
+
 private:
     QDir myDbPath;
     QStringList mySubDBs;
+    QString myDataDir;
 
     // Init / creation variables
     Q_DISABLE_COPY(DataStore)

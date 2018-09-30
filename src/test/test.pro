@@ -8,7 +8,7 @@ QT       += network testlib dbus
 
 QT       -= gui
 
-TARGET = tst_storetest
+TARGET = test
 CONFIG   += console
 CONFIG   -= app_bundle
 
@@ -28,6 +28,10 @@ INCLUDEPATH += ../lib/datastore
 LIBS += ../lib/datastore/libdatastore.a
 
 SOURCES += \
-        tst_storetest.cpp
+    main.cpp \
+    testfileio.cpp
 
 include (../../QTDataStore.libs)
+
+HEADERS += \
+    storetest.h

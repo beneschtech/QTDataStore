@@ -5,7 +5,8 @@
 DataStore *DataStore::myInstance = nullptr;
 QMutex DataStore::myMutex;
 
-DataStore::DataStore(QString &path, QStringList &subdirs)
+DataStore::DataStore(QString &path, QStringList &subdirs):
+    myDataDir("")
 {
     if (myInstance)
     {
@@ -68,6 +69,11 @@ QString DataStore::filePath(void *metaData, size_t metaDataSize)
     QString rv = myDbPath.absolutePath();
     rv.append(QDir::separator());
     hexString[2] = hexString[5] = QDir::separator().toLatin1();
+    if (myDataDir.length())
+    {
+        rv.append(myDataDir);
+        rv.append(QDir::separator());
+    }
     rv.append(hexString);
     return rv;
 }
