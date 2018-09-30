@@ -13,10 +13,20 @@ class StoreTest : public QObject
 public:
     StoreTest();
 
+private:
+    double currentTime();
+
 private Q_SLOTS:
     void initTestCase();
     void cleanupTestCase();
+
+    // Actual tests
     void hashTest();
+    void insertTest();
+    void findTest();
+    void delTest();
+    void dateTimeTest();
+    void dateTimeUniqueTest();
 };
 
 #endif // STORETEST_H

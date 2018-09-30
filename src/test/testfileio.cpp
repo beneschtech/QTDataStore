@@ -1,8 +1,62 @@
 #include "storetest.h"
 
-void StoreTest::hashTest()
+void StoreTest::insertTest()
 {
-    std::string metaData = "Now is the winter of your discontent!";
-    QString mockFname = DataStore::instance()->filePath((void *)metaData.c_str(),metaData.length());
-    QCOMPARE(mockFname,"/tmp/datastoretest/data/e0/e9/56c3ec53728b2b5cd4ec7fb7aa63151f407688bfdcb3c21735979c122b");
+    double start = currentTime();
+    int rv;
+    DataStore::instance()->insert("TESTKEY","TESTVALOK");
+    for (int i = 0;i< 999; i++)
+    {
+        QString key = QString::asprintf("%016ld",random() % 10000);
+        QByteArray val = "You will rue the day!! Well... start rueing!";
+        rv = DataStore::instance()->insert(key,val);
+        if (rv != 0)
+        {
+            break;
+        }
+    }
+    if (rv == 0)
+    {
+        std::cout << "1000 unordered inserts: " << std::fixed << (currentTime() - start)*1000 << "ms" << std::endl;
+    }
+    QCOMPARE(rv,0);
+}
+
+void StoreTest::findTest()
+{
+    QByteArray tval;
+    double start = currentTime();
+    int rv = DataStore::instance()->find("TESTKEY",tval);
+    QCOMPARE(tval.data(),"TESTVALOK");
+    QCOMPARE(rv,0);
+    int matches = 1;
+    for (int i = 0;i< 999; i++)
+    {
+        QString key = QString::asprintf("%016ld",random() % 10000);
+        QByteArray val = "";
+        rv = DataStore::instance()->find(key,val);
+        if (rv != 0 && rv != MDB_NOTFOUND)
+        {
+            break;
+        }
+        if (rv == 0)
+            matches++;
+    }
+    if (rv == 0 || rv == MDB_NOTFOUND)
+    {
+        rv = 0;
+        std::cout << "1000 random reads: " << std::fixed << (currentTime() - start)*1000 << "ms" << " " << matches << " matches" << std::endl;
+    }
+
+    QCOMPARE(rv,0);
+}
+
+void StoreTest::delTest()
+{
+    QByteArray tval;
+    int rv = DataStore::instance()->remove("TESTKEY");
+    QCOMPARE(rv,0);
+    rv = DataStore::instance()->find("TESTKEY",tval);
+    QCOMPARE(tval.size(),0);
+    QCOMPARE(rv,MDB_NOTFOUND);
 }

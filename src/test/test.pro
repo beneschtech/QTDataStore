@@ -26,10 +26,11 @@ DEFINES += QT_DEPRECATED_WARNINGS
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 INCLUDEPATH += ../lib/datastore
 LIBS += ../lib/datastore/libdatastore.a
-
+TARGETDEPS += ../lib/datastore/libdatastore.a
 SOURCES += \
     main.cpp \
-    testfileio.cpp
+    testfileio.cpp \
+    testlogic.cpp
 
 include (../../QTDataStore.libs)
 
