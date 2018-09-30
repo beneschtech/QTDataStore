@@ -1,4 +1,5 @@
 TEMPLATE = subdirs
 
 SUBDIRS += \
-    src/lib/datastore
+    src/lib/datastore \
+    src/test
