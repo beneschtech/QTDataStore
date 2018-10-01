@@ -2,6 +2,7 @@
 
 void StoreTest::insertTest()
 {
+    std::cout << "\nFile I/O tests\n" << std::endl;
     double start = currentTime();
     int rv;
     DataStore::instance()->insert("TESTKEY","TESTVALOK");

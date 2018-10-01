@@ -20,11 +20,13 @@ private Q_SLOTS:
     void initTestCase();
     void cleanupTestCase();
 
-    // Actual tests
-    void hashTest();
+    // IO tests
     void insertTest();
     void findTest();
     void delTest();
+
+    // Logic tests
+    void hashTest();
     void dateTimeTest();
     void dateTimeUniqueTest();
 };

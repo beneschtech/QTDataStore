@@ -3,6 +3,7 @@
 
 StoreTest::StoreTest()
 {
+   srandom(time(nullptr));
 }
 
 void StoreTest::initTestCase()
