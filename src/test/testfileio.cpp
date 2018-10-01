@@ -61,3 +61,11 @@ void StoreTest::delTest()
     QCOMPARE(tval.size(),0);
     QCOMPARE(rv,MDB_NOTFOUND);
 }
+
+void StoreTest::gtTest()
+{
+    QMap<QString,QByteArray> ra;
+    int rv = DataStore::instance()->greaterThan("0000000000007000",ra);
+    QCOMPARE(rv,0);
+    std::cout << "Items with keys > 7000: " << ra.size() << std::endl;
+}

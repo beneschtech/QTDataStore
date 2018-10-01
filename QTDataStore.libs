@@ -14,7 +14,7 @@ LMDB_LIBS="-llmdb"
 ## OpenSSL
 OPENSSL_INCLUDEPATH=""
 # Use crypto, we are using sha hash functions, not SSL
-OPENSSL_LIBS="-lcrypto"
+OPENSSL_LIBS="-lcrypto11"
 
 INCLUDEPATH += $${LMDB_INCLUDEPATH} $${OPENSSL_INCLUDEPATH}
 LIBS += $${LMDB_LIBS} $${OPENSSL_LIBS}

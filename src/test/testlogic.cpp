@@ -22,7 +22,7 @@ void StoreTest::dateTimeTest()
     dt = dt.toUTC();
     dt.setMSecsSinceEpoch(10000000);
     QString key = DataStore::instance()->dateTimeToStr(dt);
-    QCOMPARE(key,QString("0000000010000000"));
+    QCOMPARE(key,QString("0000010000000000"));
 }
 
 void StoreTest::dateTimeUniqueTest()

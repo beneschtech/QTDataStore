@@ -31,9 +31,7 @@ public:
     virtual int remove(QString key,QString subDb = QString());
     virtual QString dateTimeToStr(QDateTime);
     virtual QString dateTimeStrUnique(QDateTime,QString subDb = QString());
-   /*
     virtual int greaterThan(QString key,QMap<QString,QByteArray> &,QString subDb = QString());
-   */
 
 private:
     QDir myDbPath;

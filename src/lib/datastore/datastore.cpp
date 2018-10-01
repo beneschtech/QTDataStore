@@ -60,6 +60,80 @@ void DataStore::init(QString path, QStringList subDbs)
     new DataStore(path,subDbs);
 }
 
+bool DataStore::openDatabase()
+{
+    // If its a remote system, we dont actually open anything, we just pretend and do
+    // all of the jobs over DBus calls
+    if (isRemote())
+        return true;
+
+    int rval;
+    if ((rval = mdb_env_create(&myMDBEnv)) != 0)
+    {
+        std::cerr << mdb_strerror(rval) << std::endl;
+        return false;
+    }
+    if (mySubDBs.size())
+    {
+        if ((rval = mdb_env_set_maxdbs(myMDBEnv,(MDB_dbi)mySubDBs.size())))
+        {
+            std::cerr << mdb_strerror(rval) << std::endl;
+            return false;
+        }
+    }
+    mdb_mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+    if ((rval = mdb_env_open(myMDBEnv,myDbPath.absolutePath().toStdString().c_str(),MDB_NOTLS,perms)) != 0)
+    {
+        std::cerr << mdb_strerror(rval) << std::endl;
+        return false;
+    }
+    if (mySubDBs.size())
+    {
+        int i = 0;
+        while (i < mySubDBs.length())
+        {
+            const char *dbname = mySubDBs[i].toStdString().c_str();
+            MDB_txn *txn;
+            if ((rval = mdb_txn_begin(myMDBEnv,nullptr,0,&txn)) != 0)
+            {
+                std::cerr << mdb_strerror(rval) << std::endl;
+                mdb_env_close(myMDBEnv);
+                return false;
+            }
+            MDB_dbi dbh;
+            if ((rval = mdb_dbi_open(txn,dbname,MDB_CREATE,&dbh)) != 0)
+            {
+                std::cerr << mdb_strerror(rval) << std::endl;
+                mdb_txn_abort(txn);
+                mdb_env_close(myMDBEnv);
+                return false;
+            }
+            myDBHandles[dbname] = dbh;
+            mdb_txn_commit(txn);
+            i++;
+        }
+    } else {
+        MDB_txn *txn;
+        if ((rval = mdb_txn_begin(myMDBEnv,nullptr,0,&txn)) != 0)
+        {
+            std::cerr << mdb_strerror(rval) << std::endl;
+            mdb_env_close(myMDBEnv);
+            return false;
+        }
+        MDB_dbi dbh;
+        if ((rval = mdb_dbi_open(txn,nullptr,MDB_CREATE,&dbh)) != 0)
+        {
+            std::cerr << mdb_strerror(rval) << std::endl;
+            mdb_txn_abort(txn);
+            mdb_env_close(myMDBEnv);
+            return false;
+        }
+        myDBHandles[QString()] = dbh;
+        mdb_txn_commit(txn);
+    }
+    return true;
+}
+
 QString DataStore::filePath(void *metaData, size_t metaDataSize)
 {
     unsigned char hash[SHA256_DIGEST_LENGTH];
@@ -196,89 +270,17 @@ int DataStore::insert(QString key, QByteArray data, QString subDb)
     return rval;
 }
 
-bool DataStore::openDatabase()
-{
-    // If its a remote system, we dont actually open anything, we just pretend and do
-    // all of the jobs over DBus calls
-    if (isRemote())
-        return true;
-
-    int rval;
-    if ((rval = mdb_env_create(&myMDBEnv)) != 0)
-    {
-        std::cerr << mdb_strerror(rval) << std::endl;
-        return false;
-    }
-    if (mySubDBs.size())
-    {
-        if ((rval = mdb_env_set_maxdbs(myMDBEnv,(MDB_dbi)mySubDBs.size())))
-        {
-            std::cerr << mdb_strerror(rval) << std::endl;
-            return false;
-        }
-    }
-    mdb_mode_t perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    if ((rval = mdb_env_open(myMDBEnv,myDbPath.absolutePath().toStdString().c_str(),0,perms)) != 0)
-    {
-        std::cerr << mdb_strerror(rval) << std::endl;
-        return false;
-    }
-    if (mySubDBs.size())
-    {
-        int i = 0;
-        while (i < mySubDBs.length())
-        {
-            const char *dbname = mySubDBs[i].toStdString().c_str();
-            MDB_txn *txn;
-            if ((rval = mdb_txn_begin(myMDBEnv,nullptr,0,&txn)) != 0)
-            {
-                std::cerr << mdb_strerror(rval) << std::endl;
-                mdb_env_close(myMDBEnv);
-                return false;
-            }
-            MDB_dbi dbh;
-            if ((rval = mdb_dbi_open(txn,dbname,MDB_CREATE,&dbh)) != 0)
-            {
-                std::cerr << mdb_strerror(rval) << std::endl;
-                mdb_txn_abort(txn);
-                mdb_env_close(myMDBEnv);
-                return false;
-            }
-            myDBHandles[dbname] = dbh;
-            mdb_txn_commit(txn);
-            i++;
-        }
-    } else {
-        MDB_txn *txn;
-        if ((rval = mdb_txn_begin(myMDBEnv,nullptr,0,&txn)) != 0)
-        {
-            std::cerr << mdb_strerror(rval) << std::endl;
-            mdb_env_close(myMDBEnv);
-            return false;
-        }
-        MDB_dbi dbh;
-        if ((rval = mdb_dbi_open(txn,nullptr,MDB_CREATE,&dbh)) != 0)
-        {
-            std::cerr << mdb_strerror(rval) << std::endl;
-            mdb_txn_abort(txn);
-            mdb_env_close(myMDBEnv);
-            return false;
-        }
-        myDBHandles[QString()] = dbh;
-        mdb_txn_commit(txn);
-    }
-    return true;
-}
-
 QString DataStore::dateTimeToStr(QDateTime dt)
 {
     qint64 mSecs = dt.toUTC().toMSecsSinceEpoch();
+    mSecs *= 1000;
     return QString::asprintf("%016lld",mSecs);
 }
 
 QString DataStore::dateTimeStrUnique(QDateTime dt, QString subDb)
 {
     qint64 mSecs = dt.toUTC().toMSecsSinceEpoch();
+    mSecs *= 1000;
     QByteArray ba;
     QString key = QString::asprintf("%016lld",mSecs);
     int rv = find(key,ba,subDb);
@@ -289,4 +291,66 @@ QString DataStore::dateTimeStrUnique(QDateTime dt, QString subDb)
         rv = find(key,ba,subDb);
     }
     return key;
+}
+
+int DataStore::greaterThan(QString key, QMap<QString, QByteArray> &rarray, QString subDb)
+{
+    int rval;
+    MDB_txn *txn;
+    if ((rval = mdb_txn_begin(myMDBEnv,nullptr,MDB_RDONLY,&txn)) != 0)
+    {
+        std::cerr << mdb_strerror(rval) << std::endl;
+        return rval;
+    }
+    MDB_dbi dbh;
+    QMap<QString,MDB_dbi>::iterator dbi = myDBHandles.find(subDb);
+    if (dbi == myDBHandles.end())
+    {
+        mdb_txn_commit(txn);
+        return -1;
+    }
+    dbh = dbi.value();
+    MDB_cursor *curs;
+    if ((rval = mdb_cursor_open(txn,dbh,&curs)) != 0)
+    {
+        std::cerr << mdb_strerror(rval) << std::endl;
+        return rval;
+    }
+    MDB_val mkey,mdata;
+    std::string s = key.toStdString();
+    mkey.mv_data = (void *)s.c_str();
+    mkey.mv_size = s.length();
+    if ((rval = mdb_cursor_get(curs,&mkey,&mdata,MDB_SET_RANGE)) != 0)
+    {
+        if (rval != MDB_NOTFOUND) {
+            std::cerr << mdb_strerror(rval) << std::endl;
+            return rval;
+        }
+        mdb_cursor_close(curs);
+        mdb_txn_commit(txn);
+    }
+    rarray.clear();
+
+    if ((rval = mdb_cursor_get(curs,&mkey,&mdata,MDB_GET_CURRENT)) != 0)
+    {
+        mdb_cursor_close(curs);
+        mdb_txn_commit(txn);
+        if (rval != MDB_NOTFOUND) {
+            std::cerr << mdb_strerror(rval) << std::endl;
+        }
+        return rval;
+    }
+    QString rk = QByteArray::fromRawData((const char *)mkey.mv_data,mkey.mv_size);
+    rarray[rk] = QByteArray::fromRawData((const char *)mdata.mv_data,mdata.mv_size);
+    while ((rval = mdb_cursor_get(curs,&mkey,&mdata,MDB_NEXT)) == 0)
+    {
+        rk = QByteArray::fromRawData((const char *)mkey.mv_data,mkey.mv_size);
+        rarray[rk] = QByteArray::fromRawData((const char *)mdata.mv_data,mdata.mv_size);
+    }
+    if (rval != MDB_NOTFOUND) {
+        std::cerr << mdb_strerror(rval) << std::endl;
+    }
+    mdb_cursor_close(curs);
+    mdb_txn_commit(txn);
+    return 0;
 }
