@@ -25,8 +25,14 @@ DEFINES += QT_DEPRECATED_WARNINGS
 # You can also select to disable deprecated APIs only up to a certain version of Qt.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 INCLUDEPATH += ../lib/datastore
-LIBS += ../lib/datastore/libdatastore.a
-TARGETDEPS += ../lib/datastore/libdatastore.a
+unix {
+DSLIB="../lib/datastore/libdatastore.a"
+}
+win32 {
+DSLIB="../lib/datastore/debug/libdatastore.a"
+}
+LIBS += $$DSLIB
+TARGETDEPS += $$DSLIB
 SOURCES += \
     main.cpp \
     testfileio.cpp \

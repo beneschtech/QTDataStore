@@ -17,6 +17,7 @@ class DataStore: public QObject
 public:
     static DataStore* instance();
     static void init(QString path,QStringList subDbs = QStringList());
+    void shutdown();
 
     // Getter/Setters
     void setDataDir(QString s) { myDataDir = s; }

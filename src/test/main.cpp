@@ -9,7 +9,8 @@ StoreTest::StoreTest()
 void StoreTest::initTestCase()
 {
     QStringList dbs;
-    DataStore::init("/tmp/datastoretest",dbs);
+    DataStore::init(myTestDir.path(),dbs);
+    std::cout << "Using temporary directory: " << myTestDir.path().toStdString() << std::endl;
     QVERIFY(DataStore::instance());
     DataStore::instance()->setDataDir("data");
     QCOMPARE(DataStore::instance()->dataDir(),QString("data"));
@@ -17,8 +18,7 @@ void StoreTest::initTestCase()
 
 void StoreTest::cleanupTestCase()
 {
-    QDir d("/tmp/datastoretest");
-    QVERIFY(d.removeRecursively());
+    DataStore::instance()->shutdown();
 }
 
 double StoreTest::currentTime()

@@ -9,6 +9,13 @@
 DataStore *DataStore::myInstance = nullptr;
 QMutex DataStore::myMutex;
 
+void DataStoreAtExit()
+{
+    // Attempts to close everything if the program abends and not leave stray locks
+    if (DataStore::instance())
+        DataStore::instance()->shutdown();
+}
+
 DataStore::DataStore(QString &path, QStringList &subdirs):
     myDataDir(""),
     myMDBEnv(nullptr)
@@ -36,7 +43,7 @@ DataStore::DataStore(QString &path, QStringList &subdirs):
         myMDBEnv = nullptr;
         return;
     }
-    // Check if DBs are correct
+    atexit(DataStoreAtExit);
 }
 
 DataStore *DataStore::instance()
@@ -58,6 +65,18 @@ void DataStore::init(QString path, QStringList subDbs)
 {
     QMutexLocker l(&myMutex);
     new DataStore(path,subDbs);
+}
+
+void DataStore::shutdown()
+{
+    QMap<QString,MDB_dbi>::iterator dit = myDBHandles.begin();
+    while (dit != myDBHandles.end())
+    {
+        mdb_dbi_close(myMDBEnv,dit.value());
+        dit++;
+    }
+    mdb_env_close(myMDBEnv);
+    myInstance = nullptr;
 }
 
 bool DataStore::openDatabase()
