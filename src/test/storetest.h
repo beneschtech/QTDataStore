@@ -27,6 +27,8 @@ private Q_SLOTS:
     void findTest();
     void delTest();
     void gtTest();
+    void ltTest();
+    void allTest();
 
     // Logic tests
     void hashTest();

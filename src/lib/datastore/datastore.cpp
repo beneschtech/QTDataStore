@@ -81,11 +81,6 @@ void DataStore::shutdown()
 
 bool DataStore::openDatabase()
 {
-    // If its a remote system, we dont actually open anything, we just pretend and do
-    // all of the jobs over DBus calls
-    if (isRemote())
-        return true;
-
     int rval;
     if ((rval = mdb_env_create(&myMDBEnv)) != 0)
     {
@@ -180,14 +175,27 @@ QString DataStore::filePath(void *metaData, size_t metaDataSize)
     return rv;
 }
 
-bool DataStore::isRemote()
+QString DataStore::dateTimeToStr(QDateTime dt)
 {
-    const char *ep = getenv("DBUS_SESSION_BUS_ADDRESS");
-    if (!ep) // Env variable doesnt exist, so we are using default system bus
-        return false;
-    QString s(ep);
-    // If it has TCP in it its connecting to a remote site, otherwise its a local bus
-    return s.contains("tcp:");
+    qint64 mSecs = dt.toUTC().toMSecsSinceEpoch();
+    mSecs *= 1000;
+    return QString::asprintf("%016lld",mSecs);
+}
+
+QString DataStore::dateTimeStrUnique(QDateTime dt, QString subDb)
+{
+    qint64 mSecs = dt.toUTC().toMSecsSinceEpoch();
+    mSecs *= 1000;
+    QByteArray ba;
+    QString key = QString::asprintf("%016lld",mSecs);
+    int rv = find(key,ba,subDb);
+    while (rv != MDB_NOTFOUND)
+    {
+        mSecs++;
+        key = QString::asprintf("%016lld",mSecs);
+        rv = find(key,ba,subDb);
+    }
+    return key;
 }
 
 int DataStore::find(QString key, QByteArray &data, QString subDb)
@@ -289,29 +297,6 @@ int DataStore::insert(QString key, QByteArray data, QString subDb)
     return rval;
 }
 
-QString DataStore::dateTimeToStr(QDateTime dt)
-{
-    qint64 mSecs = dt.toUTC().toMSecsSinceEpoch();
-    mSecs *= 1000;
-    return QString::asprintf("%016lld",mSecs);
-}
-
-QString DataStore::dateTimeStrUnique(QDateTime dt, QString subDb)
-{
-    qint64 mSecs = dt.toUTC().toMSecsSinceEpoch();
-    mSecs *= 1000;
-    QByteArray ba;
-    QString key = QString::asprintf("%016lld",mSecs);
-    int rv = find(key,ba,subDb);
-    while (rv != MDB_NOTFOUND)
-    {
-        mSecs++;
-        key = QString::asprintf("%016lld",mSecs);
-        rv = find(key,ba,subDb);
-    }
-    return key;
-}
-
 int DataStore::greaterThan(QString key, QMap<QString, QByteArray> &rarray, QString subDb)
 {
     int rval;
@@ -360,11 +345,135 @@ int DataStore::greaterThan(QString key, QMap<QString, QByteArray> &rarray, QStri
         return rval;
     }
     QString rk = QByteArray::fromRawData((const char *)mkey.mv_data,mkey.mv_size);
-    rarray[rk] = QByteArray::fromRawData((const char *)mdata.mv_data,mdata.mv_size);
+    QByteArray rv = QByteArray::fromRawData((const char *)mdata.mv_data,mdata.mv_size);
+    if (filter(rk,rv))
+        rarray[rk] = rv;
     while ((rval = mdb_cursor_get(curs,&mkey,&mdata,MDB_NEXT)) == 0)
     {
         rk = QByteArray::fromRawData((const char *)mkey.mv_data,mkey.mv_size);
-        rarray[rk] = QByteArray::fromRawData((const char *)mdata.mv_data,mdata.mv_size);
+        rv = QByteArray::fromRawData((const char *)mdata.mv_data,mdata.mv_size);
+        if (filter(rk,rv))
+            rarray[rk] = rv;
+    }
+    if (rval != MDB_NOTFOUND) {
+        std::cerr << mdb_strerror(rval) << std::endl;
+    }
+    mdb_cursor_close(curs);
+    mdb_txn_commit(txn);
+    return 0;
+}
+
+int DataStore::lessThan(QString key, QMap<QString, QByteArray> &rarray, QString subDb)
+{
+    int rval;
+    MDB_txn *txn;
+    if ((rval = mdb_txn_begin(myMDBEnv,nullptr,MDB_RDONLY,&txn)) != 0)
+    {
+        std::cerr << mdb_strerror(rval) << std::endl;
+        return rval;
+    }
+    MDB_dbi dbh;
+    QMap<QString,MDB_dbi>::iterator dbi = myDBHandles.find(subDb);
+    if (dbi == myDBHandles.end())
+    {
+        mdb_txn_commit(txn);
+        return -1;
+    }
+    dbh = dbi.value();
+    MDB_cursor *curs;
+    if ((rval = mdb_cursor_open(txn,dbh,&curs)) != 0)
+    {
+        std::cerr << mdb_strerror(rval) << std::endl;
+        return rval;
+    }
+    MDB_val mkey,mdata;
+    std::string s = key.toStdString();
+    mkey.mv_data = (void *)s.c_str();
+    mkey.mv_size = s.length();
+    if ((rval = mdb_cursor_get(curs,&mkey,&mdata,MDB_SET_RANGE)) != 0)
+    {
+        if (rval != MDB_NOTFOUND) {
+            std::cerr << mdb_strerror(rval) << std::endl;
+            return rval;
+        }
+        mdb_cursor_close(curs);
+        mdb_txn_commit(txn);
+    }
+    rarray.clear();
+
+    if ((rval = mdb_cursor_get(curs,&mkey,&mdata,MDB_GET_CURRENT)) != 0)
+    {
+        mdb_cursor_close(curs);
+        mdb_txn_commit(txn);
+        if (rval != MDB_NOTFOUND) {
+            std::cerr << mdb_strerror(rval) << std::endl;
+        }
+        return rval;
+    }
+    QString rk = QByteArray::fromRawData((const char *)mkey.mv_data,mkey.mv_size);
+    QByteArray rv = QByteArray::fromRawData((const char *)mdata.mv_data,mdata.mv_size);
+    if (filter(rk,rv))
+        rarray[rk] = rv;
+    while ((rval = mdb_cursor_get(curs,&mkey,&mdata,MDB_PREV)) == 0)
+    {
+        rk = QByteArray::fromRawData((const char *)mkey.mv_data,mkey.mv_size);
+        rv = QByteArray::fromRawData((const char *)mdata.mv_data,mdata.mv_size);
+        if (filter(rk,rv))
+            rarray[rk] = rv;
+    }
+    if (rval != MDB_NOTFOUND) {
+        std::cerr << mdb_strerror(rval) << std::endl;
+    }
+    mdb_cursor_close(curs);
+    mdb_txn_commit(txn);
+    return 0;
+}
+
+int DataStore::all(QMap<QString, QByteArray> &rarray, QString subDb)
+{
+    int rval;
+    MDB_txn *txn;
+    if ((rval = mdb_txn_begin(myMDBEnv,nullptr,MDB_RDONLY,&txn)) != 0)
+    {
+        std::cerr << mdb_strerror(rval) << std::endl;
+        return rval;
+    }
+    MDB_dbi dbh;
+    QMap<QString,MDB_dbi>::iterator dbi = myDBHandles.find(subDb);
+    if (dbi == myDBHandles.end())
+    {
+        mdb_txn_commit(txn);
+        return -1;
+    }
+    dbh = dbi.value();
+    MDB_cursor *curs;
+    if ((rval = mdb_cursor_open(txn,dbh,&curs)) != 0)
+    {
+        std::cerr << mdb_strerror(rval) << std::endl;
+        return rval;
+    }
+    MDB_val mkey,mdata;
+    rarray.clear();
+
+    if ((rval = mdb_cursor_get(curs,&mkey,&mdata,MDB_FIRST)) != 0)
+    {
+        mdb_cursor_close(curs);
+        mdb_txn_commit(txn);
+        if (rval != MDB_NOTFOUND) {
+            std::cerr << mdb_strerror(rval) << std::endl;
+        }
+        return rval;
+    }
+    QString rk = QByteArray::fromRawData((const char *)mkey.mv_data,mkey.mv_size);
+    QByteArray rv = QByteArray::fromRawData((const char *)mdata.mv_data,mdata.mv_size);
+    if (filter(rk,rv))
+        rarray[rk] = rv;
+    while ((rval = mdb_cursor_get(curs,&mkey,&mdata,MDB_NEXT)) == 0)
+    {
+        rk = QByteArray::fromRawData((const char *)mkey.mv_data,mkey.mv_size);
+        rv = QByteArray::fromRawData((const char *)mdata.mv_data,mdata.mv_size);
+        if (filter(rk,rv))
+            rarray[rk] = rv;
     }
     if (rval != MDB_NOTFOUND) {
         std::cerr << mdb_strerror(rval) << std::endl;

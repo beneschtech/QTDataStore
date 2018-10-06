@@ -69,3 +69,19 @@ void StoreTest::gtTest()
     QCOMPARE(rv,0);
     std::cout << "Items with keys > 7000: " << ra.size() << std::endl;
 }
+
+void StoreTest::ltTest()
+{
+    QMap<QString,QByteArray> ra;
+    int rv = DataStore::instance()->lessThan("0000000000002000",ra);
+    QCOMPARE(rv,0);
+    std::cout << "Items with keys < 2000: " << ra.size() << std::endl;
+}
+
+void StoreTest::allTest()
+{
+    QMap<QString,QByteArray> ra;
+    int rv = DataStore::instance()->all(ra);
+    QCOMPARE(rv,0);
+    std::cout << "All items count: " << ra.size() << std::endl;
+}

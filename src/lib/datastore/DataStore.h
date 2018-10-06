@@ -26,13 +26,17 @@ public:
     // Derived object overrides
     virtual QString filePath(void *metaData,size_t metaDataSize);
     virtual bool openDatabase();
-    virtual bool isRemote();
     virtual int insert(QString key,QByteArray data,QString subDb = QString());
     virtual int find(QString key,QByteArray &data,QString subDb = QString());
     virtual int remove(QString key,QString subDb = QString());
     virtual QString dateTimeToStr(QDateTime);
     virtual QString dateTimeStrUnique(QDateTime,QString subDb = QString());
     virtual int greaterThan(QString key,QMap<QString,QByteArray> &,QString subDb = QString());
+    virtual int lessThan(QString key,QMap<QString,QByteArray> &,QString subDb = QString());
+    virtual int all(QMap<QString,QByteArray> &,QString subDb = QString());
+
+    // The below function is the most important to be able to search on more than just the key
+    virtual bool filter(QString &,QByteArray &) { return true; }
 
 private:
     QDir myDbPath;
